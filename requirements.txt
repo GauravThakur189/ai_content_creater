@@ -1,0 +1,6 @@
+selenium
+openai
+streamlit  
+langchain
+langchain-community
+langchain-openai 
