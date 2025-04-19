@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import seaborn as sns
 from wordcloud import STOPWORDS
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+import re
 
 # Load your scraped data
 df = pd.read_csv("linkedin_posts.csv")
@@ -31,49 +34,49 @@ plt.title("Word Cloud of LinkedIn Posts")
 plt.show()
 
 # --- 2. Post Timing Analysis ---
-# Convert datetime if available
+
 if 'datetime' in df.columns:
-    print("format of date time ")
-    print(df['datetime'].head(10))
+    
+    def parse_relative_date(text):
+      text = str(text).lower()
+      if "month" in text:
+        num = int(text.split("month")[0].strip().split()[-1])
+        return datetime.now() - relativedelta(months=num)
+      elif "year" in text:
+        num = int(text.split("year")[0].strip().split()[-1])
+        return datetime.now() - relativedelta(years=num)
+      elif "week" in text:
+        num = int(text.split("week")[0].strip().split()[-1])
+        return datetime.now() - relativedelta(weeks=num)
+      elif "day" in text:
+        num = int(text.split("day")[0].strip().split()[-1])
+        return datetime.now() - relativedelta(days=num)
+      else:
+        return None
 
-    df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
-    df = df.dropna(subset=['datetime'])
+    df['parsed_date'] = df['datetime'].apply(parse_relative_date)
+    df['posting_day'] = df['parsed_date'].dt.day_name()
 
-    df['day_of_week'] = df['datetime'].dt.day_name()
-    df['hour'] = df['datetime'].dt.hour
-
+# Now count post days
+    day_counts = df['posting_day'].value_counts()
     print("\n📆 Most Common Posting Days:")
-    print(df['day_of_week'].value_counts())
-
-    # Plot Day of Week
-    plt.figure(figsize=(8, 4))
-    sns.countplot(data=df, x='day_of_week', order=[
-                  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
-    plt.title("Posts per Day of the Week")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
-
-    # Plot Hour of Day
-    plt.figure(figsize=(8, 4))
-    sns.countplot(data=df, x='hour')
-    plt.title("Posts per Hour of Day")
-    plt.tight_layout()
-    plt.show()
-else:
-    print("\n⚠️ Posting time data not available or unformatted.")
+    print(day_counts)
 
 # --- 3. Hashtag Analysis ---
-print("-----------")
-print(df['hashtags'].dropna().head(10))
-print("----------")
-hashtags = df['hashtags'].dropna().tolist()
-all_hashtags = ' '.join(hashtags).replace(',', ' ').split()
-hashtag_freq = Counter(all_hashtags)
+print("Hashtag format")
 
+
+def extract_hashtags_from_text(text):
+    if pd.isna(text):
+        return []
+    return re.findall(r"#\w+", text)
+
+df['extracted_hashtags'] = df['text'].apply(extract_hashtags_from_text)
+all_tags = df['extracted_hashtags'].sum()
+hashtag_freq = Counter(all_tags)
 print("\n📊 Top 10 Hashtags:")
-for tag, freq in hashtag_freq.most_common(10):
-    print(f"{tag}: {freq} times")
+for tag, count in hashtag_freq.most_common(10):
+    print(f"{tag}: {count} times")
 
 # --- 4. Post Length vs Engagement ---
 df['post_length'] = df['text'].apply(lambda x: len(str(x)))
@@ -88,3 +91,12 @@ plt.xlabel("Post Length (Characters)")
 plt.ylabel("Engagement (Reactions + Comments)")
 plt.tight_layout()
 plt.show()
+# Top 10 Hashtags Plot
+top_tags = dict(hashtag_freq.most_common(10))
+plt.figure(figsize=(8, 4))
+sns.barplot(x=list(top_tags.values()), y=list(top_tags.keys()))
+plt.title("Top Hashtags")
+plt.xlabel("Frequency")
+plt.tight_layout()
+plt.show()
+
