@@ -1,37 +1,57 @@
-from fastapi import FastAPI, HTTPException, Depends, HTTPException, status
+
+
+
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+import models, schema, database
 import pandas as pd
 import random
-from sqlalchemy.orm import Session
-from database import get_db,create_tables
-from models import Product
-from schema import Feedback
 from generator.posts_generator import generate_variations
+from scraper.linkedin_scrapper import run_scraper
+from database import SessionLocal
+from models import Feedback
 
+# ✅ Create tables BEFORE running any DB operations
+models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
-# Load your DataFrame (replace with actual data loading logic)
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        
 try:
-    df = pd.read_csv("data/post_insights.csv")  # Update with your actual data source
-    if 'insights' not in df.columns:
+      df = pd.read_csv("data/post_insights.csv")  # Update with your actual data source
+      if 'insights' not in df.columns:
         raise ValueError("DataFrame missing 'insights' column")
 except Exception as e:
-    df = pd.DataFrame()
-    print(f"Data loading error: {str(e)}")
+     df = pd.DataFrame()
+     print(f"Data loading error: {str(e)}")    
 
-# def generate_variations(insight: str, count: int) -> list:
-#     """Generates variations of the given insight"""
-#     return [{"content": f"{insight} - Variation {i+1}"} for i in range(count)]
+@app.post("/", response_model=schema.FeedbackResponse)
+def create_feedback(feedback: schema.FeedbackCreate, db: Session = Depends(get_db)):
+    try:
+        db_feedback = Feedback(feedback_text=feedback.feedback_text)
+        db.add(db_feedback)
+        db.commit()
+        db.refresh(db_feedback)
+        return db_feedback
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating feedback: {e}")
 
-@app.on_event("startup")
-def startup_event():
-    create_tables()
-@app.get('/posts')
-async def get_posts():
-    """GET endpoint to retrieve static posts"""
-    return [{"title": "Post 1"}, {"title": "Post 2"}]
+@app.post('/scrape')
+async def scrape_linkedin(request_data: schema.ProfileRequest):
+    """POST endpoint to scrape LinkedIn post variations from DataFrame"""
+    
+    result = run_scraper(request_data.profile_url)
+    return result
+       
 
-@app.post('/generate')
+   
+@app.get('/generate')
 async def analyze_linkedin():
     """POST endpoint to generate LinkedIn post variations from DataFrame"""
     if df.empty:
@@ -43,40 +63,9 @@ async def analyze_linkedin():
     
     # Generate variations
     variations = generate_variations(insight, 3)
-    
+    # variations = "xyz"
+    print("the out vars : ",variations)
     return {
         "original_insight": insight,
         "variations": variations
-    }
-    
-    
-@app.post("/feedback", status_code=status.HTTP_201_CREATED)
-def create_feedback(feedback: Feedback, db: Session = Depends(get_db)):
-    """
-    Create a new feedback entry
-    """
-    try:
-        # Create new feedback instance
-        new_feedback = Product(feedback=feedback.feedback)
-        
-        # Add to database and commit
-        db.add(new_feedback)
-        db.commit()
-        db.refresh(new_feedback)
-        
-        # Return created feedback with ID
-        return {
-            "id": new_feedback.id,
-            "feedback": new_feedback.feedback
-        }
-        
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating feedback: {str(e)}"
-        )    
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    }    

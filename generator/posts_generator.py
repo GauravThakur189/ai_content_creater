@@ -5,6 +5,7 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.schema import HumanMessage
 import random
 import re
+import sqlite3  # <-- added
 
 load_dotenv()
 
@@ -18,8 +19,24 @@ except Exception as e:
     print(f"Error loading CSV: {e}")
     df = pd.DataFrame(columns=["text_snippet", "engagement", "insights"])
 
+# Fetch top 3 feedback from feedback.db
+def get_top_feedback():
+    try:
+        conn = sqlite3.connect('feedback.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT feedback_text FROM feedback ORDER BY rating DESC LIMIT 3;")
+        rows = cursor.fetchall()
+        conn.close()
+        top_feedback = [row[0] for row in rows]
+        return "\n".join(f"- {feedback}" for feedback in top_feedback)
+    except Exception as e:
+        print(f"Error fetching feedback: {e}")
+        return ""
+
+top_feedback_text = get_top_feedback()
+
 # Initialize LLM
-llm = ChatOpenAI(temperature=0.8, model="gpt-4")
+llm = ChatOpenAI(temperature=0.8, model="gpt-4o")
 
 def parse_insight(insight):
     topic, tone, cta = "", "", ""
@@ -35,51 +52,53 @@ def parse_insight(insight):
 
 # Function to generate post variations
 def generate_variations(insight, n_variations=3):
-    # First parse the insight to extract topic, tone, and CTA
     topic, tone, cta = parse_insight(insight)
-    
-    # If parsing failed (empty fields), provide default values
-    
+
     prompt_template = ChatPromptTemplate.from_template(
         """
         Based on the following insight, generate a LinkedIn post.
-        
+
         1. Topic: {topic}
         2. Tone: {tone}
         3. CTA: {cta}
+
+        You can use these common words: {df_common_words} to create the posts which have been filtered from the previous posts.
+        You can use these hashtags: {df_hashtags} to create the posts which have been filtered from the previous posts.
         
-        you can use these common words : {df_common_words} to create the posts which have been filtered from the previous posts.
-        
+        Here is some top feedback from past posts to guide the style and message:
+        {top_feedback}
+
         The post should feel natural, engaging, and authentic. Keep it under 300 words.
         Also write the some hashtags which are related to the topic of the post.
-        you can use these hashtags : {df_hashtags} to create the posts which have been filtered from the previous posts.
-        
-        Generate {n} different versions.
+
+        Generate {n} different variations in this format
+        Variation 1: This is variation one.
+
+        Variation 2: This is variation two.
+
+        Varitaion 3: This is variation three.
         """
     )
-    
+
     prompt = prompt_template.format_messages(
-        topic=topic, tone=tone, cta=cta, n=n_variations, df_common_words=df_common_words,df_hashtags=df_hashtags
+        topic=topic, tone=tone, cta=cta,
+        n=n_variations, df_common_words=df_common_words,
+        df_hashtags=df_hashtags, top_feedback=top_feedback_text
     )
-    
-   
+
     try:
-      response = llm.invoke(prompt)
+        response = llm.invoke(prompt)
     except Exception as e:
-       print(f"LLM generation failed: {e}")
-       return ["Error generating post variations."]
-    
-    # Split response by double newline or Version markers if present
+        print(f"LLM generation failed: {e}")
+        return ["Error generating post variations."]
+
     if "\n\nVersion" in response.content:
         variations = re.split(r'\n\nVersion \d+:', response.content)
-        # Remove empty strings and strip whitespace
         variations = [v.strip() for v in variations if v.strip()]
     else:
         variations = response.content.strip().split("\n\n")
-        # Make sure we have the right number of variations
         if len(variations) < n_variations:
             variations = [v for v in response.content.strip().split("\n") if v.strip()]
-            # Group every few lines together to form variations
             grouped_variations = []
             i = 0
             while i < len(variations) and len(grouped_variations) < n_variations:
@@ -87,20 +106,17 @@ def generate_variations(insight, n_variations=3):
                 grouped_variations.append("\n".join(variations[i:group_end]))
                 i = group_end
             variations = grouped_variations[:n_variations]
-            print("variations",variations)
-    
-    # Ensure we have exactly n_variations
+
     while len(variations) < n_variations:
         variations.append("Alternative LinkedIn post: " + topic)
-    
-    return variations[:n_variations]
+
+    return variations
 
 if __name__ == "__main__":
     if not df.empty:
-        # Pick a random insight row
         row = random.choice(df.to_dict(orient="records"))
         insight = row["insights"]
-        
+
         print("Generating posts for:\n", insight)
 
         variations = generate_variations(insight, 3)
@@ -110,5 +126,3 @@ if __name__ == "__main__":
             print(f"--- Variation {i} ---\n{post}\n")
     else:
         print("No data to process.")
-
-

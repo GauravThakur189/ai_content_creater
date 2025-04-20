@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Integer, String
 from database import Base
 
-class Product(Base):
-    __tablename__ = 'feedbacks'  # This is correct based on your error message
+class Feedback(Base):
+    __tablename__ = "feedbacks"
+
     id = Column(Integer, primary_key=True, index=True)
-    feedback = Column(String)
-    
+    feedback_text = Column(String, nullable=False)  # ✅ this must match everywhere

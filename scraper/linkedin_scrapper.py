@@ -331,7 +331,7 @@ def save_to_csv(posts, filename=r"C:\Users\GAURAV\OneDrive\Desktop\ai_content_cr
         traceback.print_exc()
 
 # === Main Run ===
-def run_scraper():
+def run_scraper(PROFILE_URL):
     try:
         driver = init_browser()
         print("Browser initialized")
