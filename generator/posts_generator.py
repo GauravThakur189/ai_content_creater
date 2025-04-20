@@ -24,7 +24,7 @@ def get_top_feedback():
     try:
         conn = sqlite3.connect('feedback.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT feedback_text FROM feedback ORDER BY rating DESC LIMIT 3;")
+        cursor.execute("SELECT feedback_text FROM feedbacks DESC LIMIT 2;")
         rows = cursor.fetchall()
         conn.close()
         top_feedback = [row[0] for row in rows]
@@ -77,13 +77,16 @@ def generate_variations(insight, n_variations=3):
         Variation 2: This is variation two.
 
         Varitaion 3: This is variation three.
+        
+        Timing To Post: use this data suggestion based on count of timing to post {df_posting_days},
         """
     )
 
     prompt = prompt_template.format_messages(
         topic=topic, tone=tone, cta=cta,
         n=n_variations, df_common_words=df_common_words,
-        df_hashtags=df_hashtags, top_feedback=top_feedback_text
+        df_hashtags=df_hashtags, top_feedback=top_feedback_text,
+        df_posting_days=df_posting_days
     )
 
     try:

@@ -27,7 +27,8 @@ with tabs[0]:
         else:
             st.warning("Please enter a valid URL.")
 
-# ======================= Generate Posts =======================
+# # ======================= Generate Posts =======================
+
 with tabs[1]:
     st.header("📝 Generate Post Variations")
     
@@ -36,13 +37,27 @@ with tabs[1]:
             res = requests.get(f"{API_URL}/generate")
             if res.status_code == 200:
                 data = res.json()
-                st.subheader("📌 Original Insight:")
-                st.write(data["original_insight"])
-                
-                st.subheader("✍️ AI-Generated Variations:")
-                for i, variation in enumerate(data["variations"], 1):
-                    st.markdown(f"**Variation {i}:**")
-                    st.write(variation)
+
+                # ---------------- Original Insight ----------------
+                st.subheader("📌 Original Insight")
+                original = data["original_insight"]
+                st.write(original)
+
+                # ---------------- Variations ----------------
+                st.subheader("✍️ AI-Generated Variations")
+
+                variations = data["variations"]
+                for variation in variations:
+                    if variation.strip() == "---":
+                        st.markdown("---")
+                    elif variation.strip().startswith("###"):
+                        st.markdown(f"**{variation.strip()}**")
+                    elif variation.strip().startswith("**Timing to Post:**"):
+                        st.subheader("⏰ Timing to Post")
+                        st.write(variation.replace("**Timing to Post:**", "").strip())
+                    else:
+                        st.write(variation.strip())
+
             else:
                 st.error("Error generating post variations. Please try again later.")
 
