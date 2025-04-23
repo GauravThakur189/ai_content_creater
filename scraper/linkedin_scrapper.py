@@ -9,8 +9,8 @@ import csv
 import traceback
 
 # === CONFIG ===
-LINKEDIN_EMAIL = "rajanthakur1818@gmail.com"
-LINKEDIN_PASSWORD = "Gaurav@189"
+LINKEDIN_EMAIL = "Your linkedin email ID "
+LINKEDIN_PASSWORD = "Your linkedin Password"
 PROFILE_URL = "https://www.linkedin.com/in/jaspar-carmichael-jack/"  # Replace
 USE_HEADLESS = False  # Set to True to run in headless mode
 
